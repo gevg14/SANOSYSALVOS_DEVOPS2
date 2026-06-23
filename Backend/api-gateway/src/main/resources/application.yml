@@ -1,0 +1,106 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+
+      # --- CONFIGURACIÓN DE CORS AGREGADA AQUÍ ---
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:5173"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+      # -------------------------------------------
+
+      # AQUÍ ESTÁ EL MAPA DE RUTAS OFICIAL
+      routes:
+        - id: finanzas-route
+          uri: lb://ms-finanzas
+          predicates:
+            - Path=/api/finanzas/**
+          filters:
+            - StripPrefix=1
+
+        - id: gestion-usuarios-route
+          uri: ${ROUTE_MS_USUARIOS:http://ms-usuarios:8081}
+          predicates:
+            - Path=/api/usuarios/**
+          filters:
+            - StripPrefix=1
+
+        - id: registro-mascotas-route
+          uri: lb://ms-registro-mascotas
+          predicates:
+            - Path=/api/mascotas/**
+          filters:
+            - StripPrefix=1
+
+        - id: geolocalizacion-route
+          uri: lb://ms-geolocalizacion
+          predicates:
+            - Path=/api/geo/**
+          filters:
+            - StripPrefix=1
+
+        - id: coincidencias-route
+          uri: ${ROUTE_MS_COINCIDENCIAS:http://ms-coincidencias:8083}
+          predicates:
+            - Path=/api/coincidencias/**
+          filters:
+            - StripPrefix=1
+
+        - id: notificaciones-route
+          uri: lb://ms-notificaciones
+          predicates:
+            - Path=/api/notificaciones/**
+          filters:
+            - StripPrefix=1
+
+        - id: organizacion-route
+          uri: lb://ms-organizacion
+          predicates:
+            - Path=/api/organizacion/**
+          filters:
+            - StripPrefix=1
+
+        - id: adopciones-route
+          uri: ${ROUTE_MS_ADOPCIONES:http://ms-adopciones:8082}
+          predicates:
+            - Path=/api/adopciones/**
+          filters:
+            - StripPrefix=1
+
+        - id: reportes-route
+          uri: lb://ms-reportes
+          predicates:
+            - Path=/api/reportes/**
+          filters:
+            - StripPrefix=1
+
+        - id: historial-route
+          uri: lb://ms-historial
+          predicates:
+            - Path=/api/historial/**
+          filters:
+            - StripPrefix=1
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
