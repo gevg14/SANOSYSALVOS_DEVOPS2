@@ -1,0 +1,221 @@
+version: '3.8'
+
+services:
+  # =========================================================================
+  # 1. INFRAESTRUCTURA BASE (MOTORES COMPARTIDOS)
+  # =========================================================================
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: sanos_y_salvos_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: adminpassword123
+      POSTGRES_DB: db_main_gateway
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - sanos-y-salvos-network
+
+  redis-cache:
+    image: redis:7-alpine
+    container_name: sanos_y_salvos_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sanos-y-salvos-network
+
+  rabbitmq-broker:
+    image: rabbitmq:3-management-alpine
+    container_name: sanos_y_salvos_rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"   # Protocolo AMQP para Spring Boot
+      - "15672:15672" # Panel Web de control RabbitMQ
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - sanos-y-salvos-network
+
+  # =========================================================================
+  # 2. TUS MICROSERVICIOS DE SPRING BOOT (COMPILACIÓN Y DESPLIEGUE)
+  # =========================================================================
+
+  ms-usuarios:
+    build:
+      context: ./Backend/ms-usuarios
+      dockerfile: Dockerfile
+    container_name: ms_usuarios_app
+    restart: on-failure
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/db_usuarios
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=adminpassword123
+      - SPRING_RABBITMQ_HOST=rabbitmq-broker
+      - SPRING_DATA_REDIS_HOST=redis-cache
+    depends_on:
+      - postgres-db
+      - rabbitmq-broker
+    networks:
+      - sanos-y-salvos-network
+
+  ms-adopciones:
+    build:
+      context: ./Backend/ms-adopciones
+      dockerfile: Dockerfile
+    container_name: ms_adopciones_app
+    restart: on-failure
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/db_adopciones
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=adminpassword123
+      - SPRING_RABBITMQ_HOST=rabbitmq-broker
+    depends_on:
+      - postgres-db
+      - rabbitmq-broker
+    networks:
+      - sanos-y-salvos-network
+
+  ms-coincidencias:
+    build:
+      context: ./Backend/ms-coincidencias
+      dockerfile: Dockerfile
+    container_name: ms_coincidencias_app
+    restart: on-failure
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/db_mascotas
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=adminpassword123
+      - SPRING_RABBITMQ_HOST=rabbitmq-broker
+      - SPRING_DATA_REDIS_HOST=redis-cache
+    depends_on:
+      - postgres-db
+      - redis-cache
+      - rabbitmq-broker
+    networks:
+      - sanos-y-salvos-network
+
+  ms-geolocalizacion:
+    build:
+      context: ./Backend/ms-geolocalizacion
+      dockerfile: Dockerfile
+    container_name: ms_geolocalizacion_app
+    restart: on-failure
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/db_geolocalizacion
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=adminpassword123
+    depends_on:
+      - postgres-db
+    networks:
+      - sanos-y-salvos-network
+
+  ms-donaciones:
+    build:
+      context: ./Backend/ms-donaciones
+      dockerfile: Dockerfile
+    container_name: ms_donaciones_app
+    restart: on-failure
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/db_donaciones
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=adminpassword123
+    depends_on:
+      - postgres-db
+    networks:
+      - sanos-y-salvos-network
+
+  ms-historial:
+    build:
+      context: ./Backend/ms-historial
+      dockerfile: Dockerfile
+    container_name: ms_historial_app
+    restart: on-failure
+    ports:
+      - "8086:8086"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/db_historial
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=adminpassword123
+    depends_on:
+      - postgres-db
+    networks:
+      - sanos-y-salvos-network
+
+  ms-notificaciones:
+    build:
+      context: ./Backend/ms-notificaciones
+      dockerfile: Dockerfile
+    container_name: ms_notificaciones_app
+    restart: on-failure
+    ports:
+      - "8087:8087"
+    environment:
+      - SPRING_RABBITMQ_HOST=rabbitmq-broker
+    depends_on:
+      - rabbitmq-broker
+    networks:
+      - sanos-y-salvos-network
+
+  # =========================================================================
+  # 3. COMPONENTE REQUERIDO BFF (GATEWAY CENTRAL DE ENTRADA)
+  # =========================================================================
+  api-gateway:
+    build:
+      context: ./Backend/api-gateway
+      dockerfile: Dockerfile
+    container_name: api_gateway_bff
+    restart: on-failure
+    ports:
+      - "8080:8080" # El puerto único al que consultará tu Frontend en React
+    environment:
+      - ROUTE_MS_USUARIOS=http://ms-usuarios:8081
+      - ROUTE_MS_ADOPCIONES=http://ms-adopciones:8082
+      - ROUTE_MS_COINCIDENCIAS=http://ms-coincidencias:8083
+      - ROUTE_MS_GEOLOCALIZACION=http://ms-geolocalizacion:8084
+      - ROUTE_MS_DONACIONES=http://ms-donaciones:8085
+      - ROUTE_MS_HISTORIAL=http://ms-historial:8086
+      - ROUTE_MS_NOTIFICACIONES=http://ms-notificaciones:8087
+    depends_on:
+      - ms-usuarios
+      - ms-adopciones
+      - ms-coincidencias
+      - ms-geolocalizacion
+      - ms-donaciones
+      - ms-historial
+      - ms-notificaciones
+    networks:
+      - sanos-y-salvos-network
+
+# Volumenes compartidos locales de persistencia rígida
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+
+# Red interna privada para aislamiento estricto entre contenedores
+networks:
+  sanos-y-salvos-network:
+    driver: bridge
