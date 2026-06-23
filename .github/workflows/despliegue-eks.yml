@@ -9,6 +9,8 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: innovatech-frontend
   EKS_CLUSTER_NAME: eks-cluster
+  # 🆔 Tu ID de cuenta recuperado de la consola AWS Academy
+  AWS_ACCOUNT_ID: "180265720053" 
 
 jobs:
   deploy:
@@ -22,26 +24,24 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # 🔒 PROTEGIDO: Ahora lee de forma segura los secretos de GitHub
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      # 🔐 SOLUCIÓN ACADEMY LABS: Login directo via CLI sin usar la acción bloqueada
+      - name: Login to Amazon ECR via AWS CLI
+        run: |
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
       - name: Build, Tag, and Push Image to Amazon ECR
-        id: build-image
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REGISTRY: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # 🔄 SOLUCIÓN: Cambiamos el "." final por "./frontend" para que encuentre tu Dockerfile
+          # Compilar usando la carpeta interna ./frontend
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./frontend
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Update Kubeconfig
         run: |
@@ -49,7 +49,6 @@ jobs:
 
       - name: Deploy to EKS
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Reemplaza la etiqueta de la imagen dinámicamente en tu archivo front.yml
