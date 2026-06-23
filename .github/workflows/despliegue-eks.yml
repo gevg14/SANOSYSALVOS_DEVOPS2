@@ -22,10 +22,11 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ASIAST6FMTD2YBW7AZ3G
-          aws-secret-access-key: 4qwiScKmndqWsJMqHbyX3AxRo0yi680hHIPa/zKc
-          aws-session-token: IQoJb3JpZ2luX2VjEEwaCXVzLXdlc3QtMiJIMEYCIQCxSvVIukk5BZRrqjai47uJwWtrqTsEm+CIWJ409i4KNAIhAMfQoIeGfjm3VUG65AFLrJcbEWI1P2jq+t/YC7B4oCYmKq0CCBUQABoMMTgwMjY1NzIwMDUzIgzhE4qGZVR4a+CxzmoqigKKSBdFqlrmlgRKRFCv4ERKfF/S9PkSLEITd747n278r+GVcm2YpgF+YH3j7EL+SyDemy+J9Ilbi2zbQ1VubDFy1Ihx+kfGZHmsVYtUSt1hQcUntr2qzcH1nHp/I+FXQelr1EiD2LTxYQhf18wg9UL+6zpY2AM2U623sfKHcVTp8MxtQvma0TyHh81coizK5CJjMsV44FAzmGboeO8lme/VFfQ5D+VuLugDFrRiAr16T2fo3TN6uN0o2GpE84Vrk36YdrNE/vuNSY8cIVI/IYlrcHHcp7Qzt6hVaTYWKmvwMm3inF6sqPMbMVUa/gdfx+TyUnYgAxKa0nqYVcnmpMNK/VZW3YwOdMJk9TCWgujRBjqcAUl1AN6c/OBeD65T5hCMod0G1cJMxuQLLZXrdsZuvy6beuu8Xbvfi+8qlimzoPv6J3CHMfIQufgyNYovOp1zeQ6hOR4AJmS22Jt/Wo2xL6kDswzSgYN18AL4QLGP/ZJ5bu5d2ixBD3gHd+8xmYnfSsNvmQIVCFP2SB72qHyhh8eJgjDjynoiiCUZkfQgoYUtNkGEifzny2zn0RSIkg==
-          aws-region: us-east-1
+          # 🔒 PROTEGIDO: Ahora lee de forma segura los secretos de GitHub
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -37,7 +38,8 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          # 🔄 SOLUCIÓN: Cambiamos el "." final por "./frontend" para que encuentre tu Dockerfile
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./frontend
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
