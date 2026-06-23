@@ -7,14 +7,17 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: innovatech-frontend
   EKS_CLUSTER_NAME: eks-cluster
   # 🆔 Tu ID de cuenta recuperado de la consola AWS Academy
   AWS_ACCOUNT_ID: "180265720053" 
+  
+  # 📦 Repositorios ECR (Asegúrate de que existan en AWS con estos nombres exactos)
+  ECR_REPOSITORY_FRONTEND: innovatech-frontend
+  ECR_REPOSITORY_BACKEND: sanos-salvos-mascotas
 
 jobs:
   deploy:
-    name: Build, Push and Deploy
+    name: Build, Push and Deploy (Frontend + Backend)
     runs-on: ubuntu-latest
 
     steps:
@@ -34,23 +37,41 @@ jobs:
         run: |
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
-      - name: Build, Tag, and Push Image to Amazon ECR
+
+      - name: Build, Tag, and Push FRONTEND Image to Amazon ECR
         env:
           ECR_REGISTRY: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Compilar usando la carpeta interna ./frontend
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./frontend
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY_FRONTEND }}:$IMAGE_TAG ./frontend
+          docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY_FRONTEND }}:$IMAGE_TAG
+
+      - name: Build, Tag, and Push BACKEND Image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Compilar usando la carpeta interna ./microservicio-mascotas
+          docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY_BACKEND }}:$IMAGE_TAG ./microservicio-mascotas
+          docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY_BACKEND }}:$IMAGE_TAG
 
       - name: Update Kubeconfig
         run: |
           aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
 
-      - name: Deploy to EKS
+      - name: Deploy Frontend to EKS
         env:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Reemplaza la etiqueta de la imagen dinámicamente en tu archivo front.yml
           sed -i "s|\${IMAGE_TAG}|$IMAGE_TAG|g" front.yml
           kubectl apply -f front.yml
+
+      - name: Deploy Backend to EKS
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Reemplaza la etiqueta de la imagen dinámicamente en tu archivo back.yml (o el nombre que tenga)
+          sed -i "s|\${IMAGE_TAG}|$IMAGE_TAG|g" back.yml
+          kubectl apply -f back.yml
